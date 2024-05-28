@@ -6,7 +6,7 @@ const AccountPage = () => {
     <main>
       <H1 className="py-8 text-white">Your Account</H1>
       <ContentBlock className="h-[500px] flex justify-center items-center">
-        Logged in as ...
+        Logged in as...
       </ContentBlock>
     </main>
   );
