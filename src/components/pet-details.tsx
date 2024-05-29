@@ -2,8 +2,10 @@
 import Image from "next/image";
 import { usePetContext } from "@/lib/hook";
 import PetButton from "./pet-button";
+import { useForm } from "react-hook-form";
 const PetDetails = () => {
   const { selectedPet, handleCheckoutPets } = usePetContext();
+
   return (
     <section className="h-full w-full flex flex-col">
       {!selectedPet ? (
