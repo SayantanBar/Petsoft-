@@ -1,14 +1,10 @@
 import H1 from "@/components/H1";
 import ContentBlock from "@/components/content-block";
 import SignOutBtn from "@/components/sign-out-btn";
-import { auth, signOut } from "@/lib/auth";
-import { redirect } from "next/navigation";
-const AccountPage = async () => {
-  const session = await auth();
+import { checkAuth } from "@/lib/server-utils";
 
-  if (!session?.user) {
-    redirect("/login");
-  }
+const AccountPage = async () => {
+  const session = await checkAuth();
   return (
     <main>
       <H1 className="py-8 text-white">Your Account</H1>

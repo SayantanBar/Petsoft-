@@ -1,29 +1,81 @@
 "use server";
 import prisma from "@/lib/db";
-import { PetFormSchema, petIdSchema } from "@/lib/validation";
-import { auth, signIn, signOut } from "@/lib/auth";
+import { PetFormSchema, authSchema, petIdSchema } from "@/lib/validation";
+import { signIn, signOut } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
+import { checkAuth, getPetById } from "@/lib/server-utils";
 import { redirect } from "next/navigation";
-
+import { Prisma } from "@prisma/client";
+import { AuthError } from "next-auth";
+import { deflate } from "zlib";
 //-------------- user action -------------//
 
-export async function logIn(formData: FormData) {
-  const authData = Object.fromEntries(formData.entries());
-  await signIn("credentials", authData);
+export async function logIn(prevState: unknown, formData: unknown) {
+  if (!(formData instanceof FormData)) {
+    return {
+      message: "invalid form data",
+    };
+  }
+  try {
+    await signIn("credentials", formData);
+  } catch (error) {
+    if (error instanceof AuthError) {
+      switch (error.type) {
+        case "CredentialsSignin": {
+          return {
+            message: "Invalid credentials",
+          };
+        }
+        default: {
+          return {
+            message: "Error!! Could not sign in",
+          };
+        }
+      }
+    }
+    throw error;
+  }
 }
 
-export async function signUp(formData: FormData) {
-  const hashedPassword = await bcrypt.hash(
-    formData.get("password") as string,
-    10,
-  );
-  await prisma.user.create({
-    data: {
-      email: formData.get("email") as string,
-      hashedPassword,
-    },
-  });
+export async function signUp(prevState: unknown, formData: unknown) {
+  //check if formData is a FormData type
+  if (!(formData instanceof FormData)) {
+    return {
+      message: "Invalid form data",
+    };
+  }
+  // convert formData to a normal object
+  const formDataEntries = Object.fromEntries(formData.entries());
+  //validate the form
+  const validatedFormData = authSchema.safeParse(formDataEntries);
+  if (!validatedFormData.success) {
+    return {
+      message: "Invalid form data",
+    };
+  }
+  const { email, password } = validatedFormData.data;
+
+  const hashedPassword = await bcrypt.hash(password, 10);
+  try {
+    await prisma.user.create({
+      data: {
+        email,
+        hashedPassword,
+      },
+    });
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError) {
+      if (err.code === "P202") {
+        return {
+          message: "Email already exist",
+        };
+      }
+    }
+    return {
+      message: "Email already exist",
+    };
+  }
 
   await signIn("credentials", formData);
 }
@@ -35,10 +87,7 @@ export async function logOut() {
 //-------------- pet action --------------//
 export async function addPet(pet: unknown) {
   //authentication
-  const session = await auth();
-  if (!session?.user) {
-    return redirect("/login");
-  }
+  const session = await checkAuth();
 
   const validatedPet = PetFormSchema.safeParse(pet);
   if (!validatedPet.success) {
@@ -63,10 +112,7 @@ export async function addPet(pet: unknown) {
 
 export async function editPet(petId: unknown, newPetData: unknown) {
   //authentication
-  const session = await auth();
-  if (!session?.user) {
-    return redirect("/login");
-  }
+  const session = await checkAuth();
 
   //validation
   const validatedPetid = petIdSchema.safeParse(petId);
@@ -77,11 +123,7 @@ export async function editPet(petId: unknown, newPetData: unknown) {
   }
 
   //authorization
-  const pet = await prisma.pet.findUnique({
-    where: {
-      id: validatedPetid.data,
-    },
-  });
+  const pet = await getPetById(validatedPetid.data);
   if (!pet) {
     return { message: "Pet is not found" };
   }
@@ -106,10 +148,7 @@ export async function editPet(petId: unknown, newPetData: unknown) {
 
 export async function deletePet(petId: unknown) {
   //authentication check
-  const session = await auth();
-  if (!session?.user) {
-    return redirect("/login");
-  }
+  const session = await checkAuth();
 
   const validatedPetid = petIdSchema.safeParse(petId);
   if (!validatedPetid.success) {
@@ -117,11 +156,8 @@ export async function deletePet(petId: unknown) {
   }
 
   // authorization
-  const pet = await prisma.pet.findUnique({
-    where: {
-      id: validatedPetid.data,
-    },
-  });
+  const pet = await getPetById(validatedPetid.data);
+
   if (!pet) {
     return { message: "Pet is not found" };
   }
@@ -139,3 +175,4 @@ export async function deletePet(petId: unknown) {
     };
   }
 }
+//366

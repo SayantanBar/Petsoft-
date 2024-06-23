@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { object, z } from "zod";
 import { default_image_url } from "./constant";
 export const PetFormSchema = z
   .object({
@@ -27,3 +27,10 @@ export const PetFormSchema = z
 export type PetFormType = z.infer<typeof PetFormSchema>;
 
 export const petIdSchema = z.string().cuid();
+
+export const authSchema = z.object({
+  email: z.string().email().max(100),
+  password: z.string().max(100),
+});
+
+export type TAuth = z.infer<typeof authSchema>;
